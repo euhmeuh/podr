@@ -21,8 +21,14 @@
                          [message _string]))
 
 (define-cstruct _GList ([data _pointer]
-                        [next _GList-pointer]
-                        [previous _GList-pointer]))
+                        [next _GList-pointer/null]
+                        [previous _GList-pointer/null]))
+
+(define (walk-glist glist)
+  (if glist
+    (cons (GList-data glist)
+          (walk-glist (GList-next glist)))
+    '()))
 
 (define _GHashTable-pointer (make-ctype _pointer #f #f))
 
@@ -107,6 +113,135 @@
    [userdata_duplicate _ItdbUserDataDuplicateFunc]
    [userdata_destroy _ItdbUserDataDestroyFunc]))
 
+(define _Itdb_Chapterdata-pointer (make-ctype _pointer #f #f))
+(define _Itdb_Artwork-pointer (make-ctype _pointer #f #f))
+(define Itdb_Track_Private-pointer (make-ctype _pointer #f #f))
+(define _time (make-ctype _int32 #f #f))
+
+(define-cstruct _Itdb_Track
+  ([itdb _Itdb_iTunesDB-pointer]
+   [title _string]
+   [ipod_path _string]
+   [album _string]
+   [artist _string]
+   [genre _string]
+   [filetype _string]
+   [comment _string]
+   [category _string]
+   [composer _string]
+   [grouping _string]
+   [description _string]
+   [podcasturl _string]
+   [podcastrss _string]
+   [chapterdata _Itdb_Chapterdata-pointer]
+   [subtitle _string]
+   [tvshow _string]
+   [tvepisode _string]
+   [tvnetwork _string]
+   [albumartist _string]
+   [keywords _string]
+   [sort_artist _string]
+   [sort_title _string]
+   [sort_album _string]
+   [sort_albumartist _string]
+   [sort_composer _string]
+   [sort_tvshow _string]
+   [id _uint32]
+   [size _uint32]
+   [tracklen _int32]
+   [cd_nr _int32]
+   [cds _int32]
+   [track_nr _int32]
+   [tracks _int32]
+   [bitrate _int32]
+   [samplerate _uint16]
+   [samplerate_low _uint16]
+   [year _int32]
+   [volume _int32]
+   [soundcheck _uint32]
+   [time_added _time]
+   [time_modified _time]
+   [time_played _time]
+   [bookmark_time _uint32]
+   [rating _uint32]
+   [playcount _uint32]
+   [playcount2 _uint32]
+   [recent_playcount _uint32]
+   [transferred _bool]
+   [BPM _int16]
+   [app_rating _uint8]
+   [type1 _uint8]
+   [type2 _uint8]
+   [compilation _uint8]
+   [starttime _uint32]
+   [stoptime _uint32]
+   [checked _uint8]
+   [dbid _uint64]
+   [drm_userid _uint32]
+   [visible _uint32]
+   [filetype_marker _uint32]
+   [artwork_count _uint16]
+   [artwork_size _uint32]
+   [samplerate2 _float]
+   [unk126 _uint16]
+   [unk132 _uint32]
+   [time_released _time]
+   [unk144 _uint16]
+   [explicit_flag _uint16]
+   [unk148 _uint32]
+   [unk152 _uint32]
+   [skipcount _uint32]
+   [recent_skipcount _uint32]
+   [last_skipped _uint32]
+   [has_artwork _uint8]
+   [skip_when_shuffling _uint8]
+   [remember_playback_position _uint8]
+   [flag4 _uint8]
+   [dbid2 _uint64]
+   [lyrics_flag _uint8]
+   [movie_flag _uint8]
+   [mark_unplayed _uint8]
+   [unk179 _uint8]
+   [unk180 _uint32]
+   [pregap _uint32]
+   [samplecount _uint64]
+   [unk196 _uint32]
+   [postgap _uint32]
+   [unk204 _uint32]
+   [mediatype _uint32]
+   [season_nr _uint32]
+   [episode_nr _uint32]
+   [unk220 _uint32]
+   [unk224 _uint32]
+   [unk228 _uint32]
+   [unk232 _uint32]
+   [unk236 _uint32]
+   [unk240 _uint32]
+   [unk244 _uint32]
+   [gapless_data _uint32]
+   [unk252 _uint32]
+   [gapless_track_flag _uint16]
+   [gapless_album_flag _uint16]
+   [obsolete _uint16]
+   [artwork _Itdb_Artwork-pointer]
+   [mhii_link _uint32]
+   [reserved_int1 _int32]
+   [reserved_int2 _int32]
+   [reserved_int3 _int32]
+   [reserved_int4 _int32]
+   [reserved_int5 _int32]
+   [reserved_int6 _int32]
+   [priv Itdb_Track_Private-pointer]
+   [reserved2 _pointer]
+   [reserved3 _pointer]
+   [reserved4 _pointer]
+   [reserved5 _pointer]
+   [reserved6 _pointer]
+   [usertype _uint64]
+   [userdata _pointer]
+   [userdata_duplicate _ItdbUserDataDuplicateFunc]
+   [userdata_destroy _ItdbUserDataDestroyFunc]))
+
 (define-gpod itdb-parse
              (_fun _string
                    (err : (_ptr io _GError-pointer/null))
@@ -125,10 +260,12 @@
     (error 'open "Unable to open database. ~a" (GError-message err))))
 
 (define (list-artists ipod)
-  (list))
+  (list-tracks ipod))
 
 (define (list-albums ipod)
-  (list))
+  (list-tracks ipod))
 
 (define (list-tracks ipod)
-  (Itdb_iTunesDB-tracks (ipod-database ipod)))
+  (map (lambda (track)
+         (Itdb_Track-title (ptr-ref track _Itdb_Track)))
+       (walk-glist (Itdb_iTunesDB-tracks (ipod-database ipod)))))
