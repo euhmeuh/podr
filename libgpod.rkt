@@ -1,13 +1,13 @@
 #lang racket/base
 
 (provide
-  find-mount-points
   open-ipod
   list-artists
   list-albums
   list-tracks)
 
-(require ffi/unsafe
+(require racket/list
+         ffi/unsafe
          ffi/unsafe/define
          ffi/unsafe/define/conventions)
  
@@ -250,22 +250,40 @@
 
 (struct ipod (mount-point name database))
 
-(define (find-mount-points)
-  (list "/dev/ipod"))
-
 (define (open-ipod mount-point)
   (define-values (db err) (itdb-parse mount-point #f))
   (if (not err)
     (ipod mount-point "Ipod" db)
-    (error 'open "Unable to open database. ~a" (GError-message err))))
+    (raise-user-error 'open "Unable to open database. ~a" (GError-message err))))
 
 (define (list-artists ipod)
-  (list-tracks ipod))
+  (order-asc
+    (group-by-name
+      (filter-map Itdb_Track-artist
+                  (get-tracks ipod)))))
 
 (define (list-albums ipod)
-  (list-tracks ipod))
+  (order-asc
+    (group-by-name
+      (filter-map Itdb_Track-album
+                  (get-tracks ipod)))))
 
 (define (list-tracks ipod)
-  (map (lambda (track)
-         (Itdb_Track-title (ptr-ref track _Itdb_Track)))
-       (walk-glist (Itdb_iTunesDB-tracks (ipod-database ipod)))))
+  (order-asc
+    (group-by-name
+      (filter-map Itdb_Track-title
+                  (get-tracks ipod)))))
+
+(define (get-tracks ipod)
+  (filter-map (lambda (track)
+                (ptr-ref track _Itdb_Track))
+              (walk-glist (Itdb_iTunesDB-tracks (ipod-database ipod)))))
+
+(define (order-asc l)
+  (sort l string<?))
+
+(define (order-dsc l)
+  (sort l string>?))
+
+(define (group-by-name l)
+  (remove-duplicates l string=?))

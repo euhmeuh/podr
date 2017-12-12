@@ -2,6 +2,9 @@
 
 (require "libgpod.rkt")
 
-(define ipod (open-ipod (car (find-mount-points))))
+(define ipod (open-ipod "/dev/ipod"))
 
-(list-artists ipod)
+(for-each
+  (lambda (artist)
+    (displayln artist))
+  (list-albums ipod))
