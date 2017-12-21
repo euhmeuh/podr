@@ -2,9 +2,13 @@
 
 (provide
   open-ipod
+  close-ipod
+  ipod-info
   list-artists
   list-albums
-  list-tracks)
+  list-tracks
+  push-track
+  delete-track)
 
 (require racket/list
          ffi/unsafe
@@ -115,7 +119,7 @@
 
 (define _Itdb_Chapterdata-pointer (make-ctype _pointer #f #f))
 (define _Itdb_Artwork-pointer (make-ctype _pointer #f #f))
-(define Itdb_Track_Private-pointer (make-ctype _pointer #f #f))
+(define _Itdb_Track_Private-pointer (make-ctype _pointer #f #f))
 (define _time (make-ctype _int32 #f #f))
 
 (define-cstruct _Itdb_Track
@@ -231,12 +235,63 @@
    [reserved_int4 _int32]
    [reserved_int5 _int32]
    [reserved_int6 _int32]
-   [priv Itdb_Track_Private-pointer]
+   [priv _Itdb_Track_Private-pointer]
    [reserved2 _pointer]
    [reserved3 _pointer]
    [reserved4 _pointer]
    [reserved5 _pointer]
    [reserved6 _pointer]
+   [usertype _uint64]
+   [userdata _pointer]
+   [userdata_duplicate _ItdbUserDataDuplicateFunc]
+   [userdata_destroy _ItdbUserDataDestroyFunc]))
+
+(define-cstruct _Itdb_SPLPref
+  ([liveupdate _uint8]
+   [checkrules _uint8]
+   [checklimits _uint8]
+   [limittype _uint32]
+   [limitsort _uint32]
+   [limitvalue _uint32]
+   [matchcheckedonly _uint8]
+   [reserved_int1 _int32]
+   [reserved_int2 _int32]
+   [reserved1 _pointer]
+   [reserved2 _pointer]))
+
+(define-cstruct _Itdb_SPLRules
+  ([unk004 _uint32]
+   [match_operator _uint32]
+   [rules _GList-pointer]
+   [reserved_int1 _int32]
+   [reserved_int2 _int32]
+   [reserved1 _pointer]
+   [reserved2 _pointer]))
+
+(define _Itdb_Playlist_Private-pointer (make-ctype _pointer #f #f))
+
+(define-cstruct _Itdb_Playlist
+  ([itdb _Itdb_iTunesDB-pointer]
+   [name _string]
+   [type _uint8]
+   [flag1 _uint8]
+   [flag2 _uint8]
+   [flag3 _uint8]
+   [num _int]
+   [members _GList-pointer]
+   [is_spl _bool]
+   [timestamp _time]
+   [id _uint64]
+   [sortorder _uint32]
+   [podcastflag _uint32]
+   [splpref _Itdb_SPLPref]
+   [splrules _Itdb_SPLRules]
+   [reserved100 _pointer]
+   [reserved101 _pointer]
+   [reserved_int1 _int32]
+   [reserved_int2 _int32]
+   [priv _Itdb_Playlist_Private-pointer]
+   [reserved2 _pointer]
    [usertype _uint64]
    [userdata _pointer]
    [userdata_duplicate _ItdbUserDataDuplicateFunc]
@@ -248,6 +303,53 @@
                    -> (db : _Itdb_iTunesDB-pointer/null)
                    -> (values db err)))
 
+(define-gpod itdb-write
+             (_fun _Itdb_iTunesDB-pointer
+                   (err : (_ptr io _GError-pointer/null))
+                   -> (result : _bool)
+                   -> (values result err)))
+
+(define-gpod itdb-free
+             (_fun _Itdb_iTunesDB-pointer -> _void))
+
+(define-gpod itdb-track-new
+             (_fun -> _Itdb_Track-pointer))
+
+(define-gpod itdb-track-add
+             (_fun _Itdb_iTunesDB-pointer
+                   _Itdb_Track-pointer
+                   _int32
+                   -> _void))
+
+(define-gpod itdb-track-remove
+             (_fun _Itdb_Track-pointer -> _void))
+
+(define-gpod itdb-track-unlink
+             (_fun _Itdb_Track-pointer -> _void))
+
+(define-gpod itdb-track-free
+             (_fun _Itdb_Track-pointer -> _void))
+
+;; get the master playlist from a database
+(define-gpod itdb-playlist-mpl
+             (_fun _Itdb_iTunesDB-pointer -> _Itdb_Playlist-pointer))
+
+(define-gpod itdb-playlist-add-track
+             (_fun _Itdb_Playlist-pointer
+                   _Itdb_Track-pointer
+                   _int32
+                   -> _void))
+
+(define-gpod itdb-playlist-remove-track
+             (_fun _Itdb_Playlist-pointer
+                   _Itdb_Track-pointer
+                   -> _void))
+
+(define-gpod itdb-playlist-contains-track
+             (_fun _Itdb_Playlist-pointer
+                   _Itdb_Track-pointer
+                   -> _bool))
+
 (struct ipod (mount-point name database))
 
 (define (open-ipod mount-point)
@@ -255,6 +357,14 @@
   (if (not err)
     (ipod mount-point "Ipod" db)
     (raise-user-error 'open "Unable to open database. ~a" (GError-message err))))
+
+(define (close-ipod)
+  (itdb-free (ipod-database ipod)))
+
+(define (ipod-info ipod)
+  (SysInfoIpodProperties->list
+    (Itdb_Device-sysinfo_extended
+      (Itdb_iTunesDB-device (ipod-database ipod)))))
 
 (define (list-artists ipod)
   (order-asc
@@ -273,6 +383,10 @@
     (group-by-name
       (filter-map Itdb_Track-title
                   (get-tracks ipod)))))
+
+(define (push-track ipod track) (format "push-track ~a" track))
+
+(define (delete-track ipod id) (format "delete-track ~a" id))
 
 (define (get-tracks ipod)
   (filter-map (lambda (track)

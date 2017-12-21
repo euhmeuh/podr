@@ -8,11 +8,22 @@
   racket/contract/base
   "libgpod.rkt")
 
-(define (ipod-info ipod) "ipod-info")
-(define (push-album ipod path) (format "push-album ~a" path))
-(define (push-artist ipod path) (format "push-artist ~a" path))
-(define (push-track ipod path) (format "push-track ~a" path))
-(define (delete-track ipod id) (format "delete-track ~a" id))
+(define (push-file ipod file-path)
+  ;;(push-track ipod track)
+  'TODO)
+
+(define (push-album ipod folder-path)
+  'TODO)
+
+(define (push-artist ipod folder-path)
+  'TODO)
+
+(define (push-folder ipod folder-path)
+  (for-each (curry push-file ipod)
+            (get-music-files folder-path)))
+
+(define (get-music-files folder-path)
+  '(TODO))
 
 (define command-tree
   `([info ,ipod-info]
@@ -54,3 +65,4 @@
 (define arguments (vector->list (current-command-line-arguments)))
 
 ((handle-arguments command-tree arguments) ipod)
+(close-ipod ipod)
