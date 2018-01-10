@@ -6,6 +6,7 @@
   racket/function
   racket/match
   racket/contract/base
+  command-tree
   "libgpod.rkt")
 
 (define (push-file ipod file-path)
@@ -25,44 +26,26 @@
 (define (get-music-files folder-path)
   '(TODO))
 
-(define command-tree
-  `([info ,ipod-info]
-    [list (albums ,list-albums)
-          (artists ,list-artists)
-          (tracks ,list-tracks)]
-    [push (album ,push-album)
-          (artist ,push-artist)
-          (track ,push-track)]
-    [delete (track ,delete-track)]))
+;; we curry methods instead of running them directly in the command tree
+(define (cmd proc)
+  (lambda args
+    (if (empty? args)
+        proc
+        (apply curryr (cons proc args)))))
 
-(define (get-command tree arg)
-  (match (assq (string->symbol arg) tree)
-    [(list name proc) #:when (procedure? proc) proc]
-    [(cons name tree) tree]
-    [_ #f]))
-
-(define (error-and-display-available-commands title tree)
-  (raise-user-error
-    title
-    "Available commands are: ~a" (map car tree)))
-
-(define (handle-arguments tree arguments)
-  (when (empty? arguments)
-    (error-and-display-available-commands 'missing-sub-command tree))
-  (define command (get-command tree (car arguments)))
-  (cond
-    [(procedure? command)
-     (if (empty? (cdr arguments))
-         command
-         (apply curryr (cons command (cdr arguments))))]
-    [(list? command)
-     (handle-arguments command (cdr arguments))]
-    [else
-     (error-and-display-available-commands 'unknown-command tree)]))
+(define commands
+  `([info ,(cmd ipod-info)]
+    [list (albums ,(cmd list-albums))
+          (artists ,(cmd list-artists))
+          (tracks ,(cmd list-tracks))]
+    [push (album ,(cmd push-album))
+          (artist ,(cmd push-artist))
+          (track ,(cmd push-track))]
+    [delete (track ,(cmd delete-track))]))
 
 (define mount-point (current-directory))
 (define ipod (open-ipod mount-point))
 (define arguments (vector->list (current-command-line-arguments)))
 
-((handle-arguments command-tree arguments) ipod)
+((command-tree commands arguments) 'ipod)
 (close-ipod ipod)
